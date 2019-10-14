@@ -6,6 +6,8 @@ from itertools import product
 import math
 import multiprocessing as mp
 import time
+import warnings
+warnings.filterwarnings("ignore")
 
 from EnvPara import EnvPara
 class TwoPlayerGridGame():
@@ -26,6 +28,7 @@ class TwoPlayerGridGame():
         self.P = self.getP()
         self.V = self.init_V()
         self.V_ = self.init_V()
+
     def getS(self):
         inner = []
         for p1, q1, p2, q2 in product(range(self.Height), range(self.Width), repeat = 2):
@@ -37,7 +40,7 @@ class TwoPlayerGridGame():
         for s in self.S:
             if (abs(s[0][0] - s[1][0]) + abs(s[0][1] - s[1][1])) <= self.distthre:
                 catch.append(s)
-
+        return catch
     def getR(self):
         R = []
         for p1, q1 in product(range(self.Height), range(self.Width)):
@@ -52,7 +55,7 @@ class TwoPlayerGridGame():
             elif s in self.catch:
                 V[s] = -100
             else:
-                V = 0
+                V[s] = 0
         return V
 
     def trans_P(self, state, id, goal):    ##Here goal should be a list
@@ -169,10 +172,20 @@ class TwoPlayerGridGame():
             return False
         return True
 
-    def NashEqu(self, state):
-        M = self.createGameMatrix(state)
+def NashEqu(output, Game, state):
+    M = Game.createGameMatrix(state)
+    rps = nash.Game(M)
+    eqs = rps.support_enumeration()
+    for eq in eqs:
+        policy_ct = eq[0]
+        policy_ad = eq[1]
+    try:
+        reward = rps[policy_ct, policy_ad]
+        reward_ct = reward[0]
+        reward_ad = reward[1]
+    except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
         rps = nash.Game(M)
-        eqs = rps.support_enumeration()
+        eqs = rps.vertex_enumeration()
         for eq in eqs:
             policy_ct = eq[0]
             policy_ad = eq[1]
@@ -180,53 +193,50 @@ class TwoPlayerGridGame():
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
             reward_ad = reward[1]
-        except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
-            rps = nash.Game(M)
-            eqs = rps.vertex_enumeration()
-            for eq in eqs:
-                policy_ct = eq[0]
-                policy_ad = eq[1]
-            try:
-                reward = rps[policy_ct, policy_ad]
-                reward_ct = reward[0]
-                reward_ad = reward[1]
-            except UnboundLocalError:
-                print ("WDNMD")
-                print("M is:", M)
-        return reward_ct
+        except UnboundLocalError:
+            print ("WDNMD")
+            print("M is:", M)
+    output.put(reward_ct)
 
-    def valueIter(self):
-        policy_ct_final = {}
-        policy_ad_final = {}
-        value_new = self.parallelComputeReward()
-        self.vec2dict(value_new)
-        while (not self.checkConverge()):
-            self.V = self.V_
-            value_new = self.parallelComputeReward()
-            self.vec2dict(value_new)
-        filename = "finalReward.pkl"
-        picklefile = open(filename, "wb")
-        pickle.dump(self.V, picklefile)
-        picklefile.close()
+def valueIter(Game):
+    i = 1
+    print (i, "th iteration")
+    value_new = parallelComputeReward(Game)
+    Game.vec2dict(value_new)
+    while (not Game.checkConverge()):
+        i += 1
+        print(i, "th iteration")
+        Game.V = Game.V_
+        value_new = parallelComputeReward(Game)
+        Game.vec2dict(value_new)
+    filename = "finalReward.pkl"
+    picklefile = open(filename, "wb")
+    pickle.dump(Game.V, picklefile)
+    picklefile.close()
 
 
-    def parallelComputeReward(self):
-        parallelprocess = 10
-        iterationnum = len(self.S)
-        periods = math.ceil(iterationnum/parallelprocess)
-        result = []
-        for i in range(periods):
-            output = mp.Queue()
-            process = [mp.Process(target = self.NashEqu, args = (output, self.S[j + i * parallelprocess])) for j in range(parallelprocess)]
-            for p in process:
-                p.start()
-            for p in process:
-                p.join()
+def parallelComputeReward(Game):
+    parallelprocess = 10
+    iterationnum = len(Game.S)
+    periods = math.ceil(iterationnum/parallelprocess)
+    result = []
+    for i in range(periods):
+        output = mp.Queue()
+        process = []
+        for j in range(parallelprocess):
+            index = j + i * parallelprocess
+            if index >= len(Game.S):
+                break
+            process.append(mp.Process(target = NashEqu, args = (output, Game, Game.S[index])))
+        for p in process:
+            p.start()
+        for p in process:
+            p.join()
 
-            result.extend(output.get() for p in process)
-            time.sleep(3)
-        return result
+        result.extend(output.get() for p in process)
+        time.sleep(3)
+    return result
 
 if __name__ == '__main__':
     Game = TwoPlayerGridGame()
-    Game.valueIter()
+    valueIter(Game)
