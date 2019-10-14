@@ -1,7 +1,11 @@
 import numpy as np
 import pickle
 import pandas
+import nashpy as nash
 from itertools import product
+import math
+import multiprocessing as mp
+import time
 
 from EnvPara import EnvPara
 class TwoPlayerGridGame():
@@ -41,6 +45,15 @@ class TwoPlayerGridGame():
         return R
 
     def init_V(self):
+        V = {}
+        for s in self.S:
+            if s[0] in self.goal:
+                V[s] = 100
+            elif s in self.catch:
+                V[s] = -100
+            else:
+                V = 0
+        return V
 
     def trans_P(self, state, id, goal):    ##Here goal should be a list
         P = {}
@@ -63,7 +76,7 @@ class TwoPlayerGridGame():
                             if st_ != temp_st:
                                 if st_ in self.R:
                                     P[action][st_] = rand
-                                else
+                                else:
                                     P[action][st_ct] += rand
                     else:
                         P[action][st_ct] = 1 - rand * 3
@@ -136,17 +149,84 @@ class TwoPlayerGridGame():
     def getReward(self, state, a1, a2, V):
         reward = 0
         for st_ in self.P[state][(a1, a2)].keys():
-            reward += V[st_] * P[state][(a1, a2)][st_]
+            reward += V[st_] * self.P[state][(a1, a2)][st_]
         return reward
 
-    def checkConverge():
-def NashEqu(M):
-    if np.linalg.det(M) == 0:
-        V = 0
-        q = np.array([1/4, 1/4, 1/4, 1/4])
-    else:
-        I = np.array([1, 1, 1, 1])
-        I_T = I.T
-        V = 1/(I.dot(np.linalg.inv(M)).dot(I_T))
-        q = V * np.linalg.inv(M).dot(I)
-    return V, q
+    def dict2vec(self, V):
+        VVec = []
+        for s in self.S:
+            VVec.append(V[s])
+        return np.array(VVec)
+
+    def vec2dict(self, V):    ##transfer value to self.V_
+        for i in range(len(self.S)):
+            self.V_[self.S[i]] = V[i]
+
+    def checkConverge(self):
+        VVec = self.dict2vec(self.V)
+        VVec_ = self.dict2vec(self.V_)
+        if (abs(VVec - VVec_) > 0.001).any():
+            return False
+        return True
+
+    def NashEqu(self, state):
+        M = self.createGameMatrix(state)
+        rps = nash.Game(M)
+        eqs = rps.support_enumeration()
+        for eq in eqs:
+            policy_ct = eq[0]
+            policy_ad = eq[1]
+        try:
+            reward = rps[policy_ct, policy_ad]
+            reward_ct = reward[0]
+            reward_ad = reward[1]
+        except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
+            rps = nash.Game(M)
+            eqs = rps.vertex_enumeration()
+            for eq in eqs:
+                policy_ct = eq[0]
+                policy_ad = eq[1]
+            try:
+                reward = rps[policy_ct, policy_ad]
+                reward_ct = reward[0]
+                reward_ad = reward[1]
+            except UnboundLocalError:
+                print ("WDNMD")
+                print("M is:", M)
+        return reward_ct
+
+    def valueIter(self):
+        policy_ct_final = {}
+        policy_ad_final = {}
+        value_new = self.parallelComputeReward()
+        self.vec2dict(value_new)
+        while (not self.checkConverge()):
+            self.V = self.V_
+            value_new = self.parallelComputeReward()
+            self.vec2dict(value_new)
+        filename = "finalReward.pkl"
+        picklefile = open(filename, "wb")
+        pickle.dump(self.V, picklefile)
+        picklefile.close()
+
+
+    def parallelComputeReward(self):
+        parallelprocess = 10
+        iterationnum = len(self.S)
+        periods = math.ceil(iterationnum/parallelprocess)
+        result = []
+        for i in range(periods):
+            output = mp.Queue()
+            process = [mp.Process(target = self.NashEqu, args = (output, self.S[j + i * parallelprocess])) for j in range(parallelprocess)]
+            for p in process:
+                p.start()
+            for p in process:
+                p.join()
+
+            result.extend(output.get() for p in process)
+            time.sleep(3)
+        return result
+
+if __name__ == '__main__':
+    Game = TwoPlayerGridGame()
+    Game.valueIter()
