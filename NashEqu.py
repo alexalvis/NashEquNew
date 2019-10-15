@@ -27,7 +27,11 @@ class TwoPlayerGridGame():
         self.O = EnvPara.Obs
         self.P = self.getP()
         self.V = self.init_V()
-        self.V_ = self.init_V()
+        self.V_ = {}
+        filename = "finalP.pkl"
+        picklefile = open(filename, "wb")
+        pickle.dump(self.P, picklefile)
+        picklefile.close()
 
     def getS(self):
         inner = []
@@ -40,6 +44,7 @@ class TwoPlayerGridGame():
         for s in self.S:
             if (abs(s[0][0] - s[1][0]) + abs(s[0][1] - s[1][1])) <= self.distthre:
                 catch.append(s)
+        print(len(catch))
         return catch
     def getR(self):
         R = []
@@ -50,10 +55,10 @@ class TwoPlayerGridGame():
     def init_V(self):
         V = {}
         for s in self.S:
-            if s[0] in self.goal:
-                V[s] = 100
-            elif s in self.catch:
-                V[s] = -100
+            if s in self.catch:
+                V[s] = self.catchV
+            elif s[0] in self.goal:
+                V[s] = self.goalReachV
             else:
                 V[s] = 0
         return V
@@ -138,7 +143,8 @@ class TwoPlayerGridGame():
                 P[s][(a1, a2)] = {}
                 for st_ct_ in Pro_ct[s][a1].keys():
                     for st_ad_ in Pro_ad[s][a2].keys():
-                        P[s][(a1,a2)][(st_ct_, st_ad_)] = Pro_ct[s][a1][st_ct_] * Pro_ad[s][a2][st_ad_]
+                        if Pro_ct[s][a1][st_ct_] > 0 and Pro_ad[s][a2][st_ad_] > 0:
+                            P[s][(a1,a2)][(st_ct_, st_ad_)] = Pro_ct[s][a1][st_ct_] * Pro_ad[s][a2][st_ad_]
         return P
 
     def createGameMatrix(self, state):
@@ -146,13 +152,13 @@ class TwoPlayerGridGame():
         M = np.zeros((4, 4))
         for i in range(4):
             for j in range(4):
-                M[i][j] = self.getReward(state, actDict[i], actDict[j], self.V)
+                M[i][j] = self.getReward(state, actDict[i], actDict[j])
         return M
 
-    def getReward(self, state, a1, a2, V):
+    def getReward(self, state, a1, a2):
         reward = 0
         for st_ in self.P[state][(a1, a2)].keys():
-            reward += V[st_] * self.P[state][(a1, a2)][st_]
+            reward += self.V[st_] * self.P[state][(a1, a2)][st_]
         return reward
 
     def dict2vec(self, V):
@@ -179,6 +185,7 @@ def NashEqu(output, Game, state):
     for eq in eqs:
         policy_ct = eq[0]
         policy_ad = eq[1]
+        break
     try:
         reward = rps[policy_ct, policy_ad]
         reward_ct = reward[0]
@@ -189,6 +196,7 @@ def NashEqu(output, Game, state):
         for eq in eqs:
             policy_ct = eq[0]
             policy_ad = eq[1]
+            break
         try:
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
@@ -233,10 +241,27 @@ def parallelComputeReward(Game):
         for p in process:
             p.join()
 
-        result.extend(output.get() for p in process)
+        result.extend([output.get() for p in process])
         time.sleep(3)
     return result
 
 if __name__ == '__main__':
     Game = TwoPlayerGridGame()
-    valueIter(Game)
+    # valueIter(Game)
+    filename = "finalReward.pkl"
+    with open(filename, "rb") as f:
+        reward = pickle.load(f)
+    Game.V = reward
+    state = ((0, 0),(1, 1))
+    M = Game.createGameMatrix(state)
+    print(M)
+    rps = nash.Game(M)
+    eqs = rps.support_enumeration()
+    for eq in eqs:
+        policy_ct = eq[0]
+        policy_ad = eq[1]
+        break
+    print(policy_ct)
+    print(policy_ad)
+
+
