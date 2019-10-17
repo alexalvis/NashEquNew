@@ -7,6 +7,7 @@ import math
 import multiprocessing as mp
 import time
 import warnings
+from copy import deepcopy as dcp
 warnings.filterwarnings("ignore")
 
 from EnvPara import EnvPara
@@ -28,7 +29,7 @@ class TwoPlayerGridGame():
         self.P = self.getP()
         self.V = self.init_V()
         self.V_ = {}
-        filename = "finalP.pkl"
+        filename = "finalP5.pkl"
         picklefile = open(filename, "wb")
         pickle.dump(self.P, picklefile)
         picklefile.close()
@@ -214,10 +215,10 @@ def valueIter(Game):
     while (not Game.checkConverge()):
         i += 1
         print(i, "th iteration")
-        Game.V = Game.V_
+        Game.V = dcp(Game.V_)
         value_new = parallelComputeReward(Game)
         Game.vec2dict(value_new)
-    filename = "finalReward.pkl"
+    filename = "finalReward5.pkl"
     picklefile = open(filename, "wb")
     pickle.dump(Game.V, picklefile)
     picklefile.close()
@@ -242,26 +243,26 @@ def parallelComputeReward(Game):
             p.join()
 
         result.extend([output.get() for p in process])
-        time.sleep(3)
+        time.sleep(1)
     return result
 
 if __name__ == '__main__':
     Game = TwoPlayerGridGame()
-    # valueIter(Game)
-    filename = "finalReward.pkl"
-    with open(filename, "rb") as f:
-        reward = pickle.load(f)
-    Game.V = reward
-    state = ((0, 0),(1, 1))
-    M = Game.createGameMatrix(state)
-    print(M)
-    rps = nash.Game(M)
-    eqs = rps.support_enumeration()
-    for eq in eqs:
-        policy_ct = eq[0]
-        policy_ad = eq[1]
-        break
-    print(policy_ct)
-    print(policy_ad)
+    valueIter(Game)
+    # filename = "finalReward.pkl"
+    # with open(filename, "rb") as f:
+    #     reward = pickle.load(f)
+    # Game.V = reward
+    # state = ((0, 0),(1, 1))
+    # M = Game.createGameMatrix(state)
+    # print(M)
+    # rps = nash.Game(M)
+    # eqs = rps.support_enumeration()
+    # for eq in eqs:
+    #     policy_ct = eq[0]
+    #     policy_ad = eq[1]
+    #     break
+    # print(policy_ct)
+    # print(policy_ad)
 
 
