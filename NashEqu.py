@@ -8,6 +8,7 @@ import multiprocessing as mp
 import time
 import warnings
 from copy import deepcopy as dcp
+import time
 warnings.filterwarnings("ignore")
 
 from EnvPara import EnvPara
@@ -45,7 +46,7 @@ class TwoPlayerGridGame():
         for s in self.S:
             if (abs(s[0][0] - s[1][0]) + abs(s[0][1] - s[1][1])) <= self.distthre:
                 catch.append(s)
-        print(len(catch))
+        # print(len(catch))
         return catch
     def getR(self):
         R = []
@@ -171,6 +172,7 @@ class TwoPlayerGridGame():
     def vec2dict(self, V):    ##transfer value to self.V_
         for i in range(len(self.S)):
             self.V_[self.S[i]] = V[i]
+        # print("V_ is: ", self.V_[(2, 1), (0, 2)])
 
     def checkConverge(self):
         VVec = self.dict2vec(self.V)
@@ -179,14 +181,13 @@ class TwoPlayerGridGame():
             return False
         return True
 
-def NashEqu(output, Game, state):
+def NashEqu(output, Game, state, j):
     M = Game.createGameMatrix(state)
     rps = nash.Game(M)
     eqs = rps.support_enumeration()
     for eq in eqs:
         policy_ct = eq[0]
         policy_ad = eq[1]
-        break
     try:
         reward = rps[policy_ct, policy_ad]
         reward_ct = reward[0]
@@ -197,7 +198,6 @@ def NashEqu(output, Game, state):
         for eq in eqs:
             policy_ct = eq[0]
             policy_ad = eq[1]
-            break
         try:
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
@@ -205,16 +205,16 @@ def NashEqu(output, Game, state):
         except UnboundLocalError:
             print ("WDNMD")
             print("M is:", M)
-    output.put(reward_ct)
+    output.put((j,reward_ct))          ##j here is used to keep multiprocessing in order
 
 def valueIter(Game):
-    i = 1
-    print (i, "th iteration")
+    index = 1
+    print (index, "th iteration")
     value_new = parallelComputeReward(Game)
     Game.vec2dict(value_new)
     while (not Game.checkConverge()):
-        i += 1
-        print(i, "th iteration")
+        index += 1
+        print(index, "th iteration")
         Game.V = dcp(Game.V_)
         value_new = parallelComputeReward(Game)
         Game.vec2dict(value_new)
@@ -225,7 +225,7 @@ def valueIter(Game):
 
 
 def parallelComputeReward(Game):
-    parallelprocess = 10
+    parallelprocess = 20
     iterationnum = len(Game.S)
     periods = math.ceil(iterationnum/parallelprocess)
     result = []
@@ -236,19 +236,27 @@ def parallelComputeReward(Game):
             index = j + i * parallelprocess
             if index >= len(Game.S):
                 break
-            process.append(mp.Process(target = NashEqu, args = (output, Game, Game.S[index])))
+            process.append(mp.Process(target = NashEqu, args = (output, Game, Game.S[index], j)))
         for p in process:
             p.start()
         for p in process:
             p.join()
-
-        result.extend([output.get() for p in process])
+        temp_res = [None] * len(process)
+        for p in process:
+            res = output.get()
+            temp_res[res[0]] = res[1]
+        result.extend(temp_res)
         time.sleep(1)
+    # print("In multiprocessing is: ", result[65])
     return result
 
 if __name__ == '__main__':
+    localtime = time.asctime(time.localtime(time.time()))
+    print("Start time is:", localtime)
     Game = TwoPlayerGridGame()
     valueIter(Game)
+    localtime = time.asctime(time.localtime(time.time()))
+    print("End time is:", localtime)
     # filename = "finalReward.pkl"
     # with open(filename, "rb") as f:
     #     reward = pickle.load(f)
