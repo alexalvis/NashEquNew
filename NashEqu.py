@@ -28,6 +28,9 @@ class TwoPlayerGridGame():
         self.goal = EnvPara.goal   ##this should be a list, right now this is just single goal, maybe extend to several goals later but not now.     2019/10/11
         self.O = EnvPara.Obs
         self.P = self.getP()
+        # filename = "reward/4thReward.pkl"
+        # with open(filename, "rb") as f:
+        #     self.V = pickle.load(f)
         self.V = self.init_V()
         self.V_ = {}
         filename = "finalP11.pkl"
@@ -56,10 +59,13 @@ class TwoPlayerGridGame():
 
     def init_V(self):
         V = {}
+        filename = "Set95.pkl"
+        with open(filename, "rb") as f:
+            amsurewin = pickle.load(f)
         for s in self.S:
             if s in self.catch:
                 V[s] = self.catchV
-            elif s[0] in self.goal:
+            elif s in amsurewin:
                 V[s] = self.goalReachV
             else:
                 V[s] = 0
@@ -184,45 +190,61 @@ class TwoPlayerGridGame():
 def NashEqu(output, Game, state, j):
     M = Game.createGameMatrix(state)
     rps = nash.Game(M)
+    # print("state is: ", state, "M is: ", M)
     eqs = rps.support_enumeration()
+    flag_su = 0
     for eq in eqs:
-        policy_ct = eq[0]
-        policy_ad = eq[1]
-    try:
+        policy_ct = np.round(eq[0], 6)
+        policy_ad = np.round(eq[1], 6)
         reward = rps[policy_ct, policy_ad]
         reward_ct = reward[0]
-        reward_ad = reward[1]
-    except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
+        if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False:
+            flag_su = 1
+            break
+
+    if flag_su == 1:
+        output.put((j, reward_ct))
+    else:
+    # except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
         rps = nash.Game(M)
         eqs = rps.vertex_enumeration()
+        flag_ver = 0
         for eq in eqs:
-            policy_ct = eq[0]
-            policy_ad = eq[1]
-        try:
+            policy_ct = np.round(eq[0], 6)
+            policy_ad = np.round(eq[1], 6)
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
-            reward_ad = reward[1]
-        except UnboundLocalError:
+            if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False:
+                flag_ver = 1
+                break
+        if flag_ver == 1:
+            output.put((j, reward_ct))
+        else:
             print ("WDNMD")
             print("M is:", M)
-    output.put((j,reward_ct))          ##j here is used to keep multiprocessing in order
+            print("state is:", state)
+    # print("state finish:", state)
+         ##j here is used to keep multiprocessing in order
 
 def valueIter(Game):
     index = 1
     print (index, "th iteration")
     value_new = parallelComputeReward(Game)
     Game.vec2dict(value_new)
+    filename_temp = "reward/" + str(index) + "thReward.pkl"
+    picklefile = open(filename_temp, "wb")
+    pickle.dump(Game.V, picklefile)
+    picklefile.close()
     while (not Game.checkConverge()):
         index += 1
         print(index, "th iteration")
         Game.V = dcp(Game.V_)
+        filename_temp = "reward/" + str(index) + "thReward.pkl"
+        picklefile = open(filename_temp, "wb")
+        pickle.dump(Game.V, picklefile)
+        picklefile.close()
         value_new = parallelComputeReward(Game)
         Game.vec2dict(value_new)
-        if index % 20 == 0:
-            filename_temp = str(index) + "thReward.pkl"
-            picklefile = open(filename_temp, "wb")
-            pickle.dump(Game.V, picklefile)
-            picklefile.close()
     filename = "finalReward11.pkl"
     picklefile = open(filename, "wb")
     pickle.dump(Game.V, picklefile)
@@ -260,7 +282,20 @@ if __name__ == '__main__':
     print("Start time is:", localtime)
     Game = TwoPlayerGridGame()
     valueIter(Game)
-    localtime = time.asctime(time.localtime(time.time()))
+    # M =[[0, 0,  0, 0],[100, 0,  100,  100],[100, 0, 100, 100],[0,0, 0, 0]]
+    # M = Game.createGameMatrix(((0,7), (1,6)))
+    # print (M)
+    # rps = nash.Game(M)
+    # eqs = rps.support_enumeration()
+    # for eq in eqs:
+    #     print("111")
+    #     policy_ct = eq[0]
+    #     policy_ad = eq[1]
+    #     print(type(policy_ct))
+    #     print(policy_ad)
+    #     reward = rps[policy_ct, policy_ad]
+    #     print(reward)
+    # localtime = time.asctime(time.localtime(time.time()))
     print("End time is:", localtime)
     # filename = "finalReward.pkl"
     # with open(filename, "rb") as f:
