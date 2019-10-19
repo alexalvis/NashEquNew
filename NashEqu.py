@@ -30,7 +30,7 @@ class TwoPlayerGridGame():
         self.P = self.getP()
         self.V = self.init_V()
         self.V_ = {}
-        filename = "finalP5.pkl"
+        filename = "finalP11.pkl"
         picklefile = open(filename, "wb")
         pickle.dump(self.P, picklefile)
         picklefile.close()
@@ -218,7 +218,12 @@ def valueIter(Game):
         Game.V = dcp(Game.V_)
         value_new = parallelComputeReward(Game)
         Game.vec2dict(value_new)
-    filename = "finalReward5.pkl"
+        if index % 20 == 0:
+            filename_temp = str(index) + "thReward.pkl"
+            picklefile = open(filename_temp, "wb")
+            pickle.dump(Game.V, picklefile)
+            picklefile.close()
+    filename = "finalReward11.pkl"
     picklefile = open(filename, "wb")
     pickle.dump(Game.V, picklefile)
     picklefile.close()
@@ -246,7 +251,7 @@ def parallelComputeReward(Game):
             res = output.get()
             temp_res[res[0]] = res[1]
         result.extend(temp_res)
-        time.sleep(1)
+        # time.sleep(1)
     # print("In multiprocessing is: ", result[65])
     return result
 
