@@ -68,7 +68,7 @@ class TwoPlayerGridGame():
             elif s in amsurewin:
                 V[s] = self.goalReachV
             else:
-                V[s] = 0
+                V[s] = 0.0000001
         return V
 
     def trans_P(self, state, id, goal):    ##Here goal should be a list
@@ -186,7 +186,7 @@ class TwoPlayerGridGame():
         if (abs(VVec - VVec_) > 0.001).any():
             return False
         return True
-
+"""
 def NashEqu(output, Game, state, j):
     M = Game.createGameMatrix(state)
     rps = nash.Game(M)
@@ -194,11 +194,13 @@ def NashEqu(output, Game, state, j):
     eqs = rps.support_enumeration()
     flag_su = 0
     for eq in eqs:
-        policy_ct = np.round(eq[0], 6)
-        policy_ad = np.round(eq[1], 6)
+        # policy_ct = np.round(eq[0], 6)
+        # policy_ad = np.round(eq[1], 6)
+        policy_ct = eq[0]
+        policy_ad = eq[1]
         reward = rps[policy_ct, policy_ad]
         reward_ct = reward[0]
-        if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False:
+        if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100:
             flag_su = 1
             break
 
@@ -210,11 +212,13 @@ def NashEqu(output, Game, state, j):
         eqs = rps.vertex_enumeration()
         flag_ver = 0
         for eq in eqs:
-            policy_ct = np.round(eq[0], 6)
-            policy_ad = np.round(eq[1], 6)
+            # policy_ct = np.round(eq[0], 6)
+            # policy_ad = np.round(eq[1], 6)
+            policy_ct = eq[0]
+            policy_ad = eq[1]
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
-            if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False:
+            if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100:
                 flag_ver = 1
                 break
         if flag_ver == 1:
@@ -225,11 +229,22 @@ def NashEqu(output, Game, state, j):
             print("state is:", state)
     # print("state finish:", state)
          ##j here is used to keep multiprocessing in order
+"""
+def NashEqu(output, Game, state, j):
+    M = Game.createGameMatrix(state)
+    iden = np.array([1, 1, 1, 1])
+    try:
+        V = 1 / (iden.dot(np.linalg.pinv(M)).dot(iden.T))
+        output.put((j, V))
+    except np.linalg.LinAlgError:
+        print(M)
+        print(state)
+        input("111")
 
-def valueIter(Game):
+def valueIter(Game, threadnumber):
     index = 1
     print (index, "th iteration")
-    value_new = parallelComputeReward(Game)
+    value_new = parallelComputeReward(Game, threadnumber)
     Game.vec2dict(value_new)
     filename_temp = "reward/" + str(index) + "thReward.pkl"
     picklefile = open(filename_temp, "wb")
@@ -243,7 +258,7 @@ def valueIter(Game):
         picklefile = open(filename_temp, "wb")
         pickle.dump(Game.V, picklefile)
         picklefile.close()
-        value_new = parallelComputeReward(Game)
+        value_new = parallelComputeReward(Game, threadnumber)
         Game.vec2dict(value_new)
     filename = "finalReward11.pkl"
     picklefile = open(filename, "wb")
@@ -251,8 +266,8 @@ def valueIter(Game):
     picklefile.close()
 
 
-def parallelComputeReward(Game):
-    parallelprocess = 20
+def parallelComputeReward(Game, threadnumber):
+    parallelprocess = threadnumber
     iterationnum = len(Game.S)
     periods = math.ceil(iterationnum/parallelprocess)
     result = []
@@ -278,10 +293,11 @@ def parallelComputeReward(Game):
     return result
 
 if __name__ == '__main__':
+    threadnumber = 20
     localtime = time.asctime(time.localtime(time.time()))
     print("Start time is:", localtime)
     Game = TwoPlayerGridGame()
-    valueIter(Game)
+    valueIter(Game, threadnumber)
     # M =[[0, 0,  0, 0],[100, 0,  100,  100],[100, 0, 100, 100],[0,0, 0, 0]]
     # M = Game.createGameMatrix(((0,7), (1,6)))
     # print (M)
