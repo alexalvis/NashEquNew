@@ -68,7 +68,7 @@ class TwoPlayerGridGame():
             elif s in amsurewin:
                 V[s] = self.goalReachV
             else:
-                V[s] = 0.0000001
+                V[s] = 0
         return V
 
     def trans_P(self, state, id, goal):    ##Here goal should be a list
@@ -186,31 +186,26 @@ class TwoPlayerGridGame():
         if (abs(VVec - VVec_) > 0.001).any():
             return False
         return True
-"""
+
 def NashEqu(output, Game, state, j):
     M = Game.createGameMatrix(state)
-    rps = nash.Game(M)
-    # print("state is: ", state, "M is: ", M)
-    eqs = rps.support_enumeration()
-    flag_su = 0
-    for eq in eqs:
-        # policy_ct = np.round(eq[0], 6)
-        # policy_ad = np.round(eq[1], 6)
-        policy_ct = eq[0]
-        policy_ad = eq[1]
-        reward = rps[policy_ct, policy_ad]
-        reward_ct = reward[0]
-        if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100:
-            flag_su = 1
-            break
-
-    if flag_su == 1:
-        output.put((j, reward_ct))
+    flag , V = saddlePoint(M)
+    if flag:
+        output.put((j, V))
     else:
-    # except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
+        # if np.linalg.det(M) != 0:
+        #     iden = np.array([1, 1, 1, 1])
+        #     V = 1 / (iden.dot(np.linalg.inv(M)).dot(iden.T))
+        #     output.put((j, V))
+        #     print("Not singular Matrix, use Game theory method, V is:", V)
+        #     if V>100 or V<-100:
+        #         print("M is:", M)
+        #         print("wdnmd")
+        # else:
         rps = nash.Game(M)
-        eqs = rps.vertex_enumeration()
-        flag_ver = 0
+        # print("state is: ", state, "M is: ", M)
+        eqs = rps.support_enumeration()
+        flag_su = 0
         for eq in eqs:
             # policy_ct = np.round(eq[0], 6)
             # policy_ad = np.round(eq[1], 6)
@@ -218,28 +213,72 @@ def NashEqu(output, Game, state, j):
             policy_ad = eq[1]
             reward = rps[policy_ct, policy_ad]
             reward_ct = reward[0]
-            if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100:
-                flag_ver = 1
+            if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100 and sum(abs(policy_ct))<1.1 and sum(abs(policy_ad))<1.1:
+                flag_su = 1
                 break
-        if flag_ver == 1:
+
+        if flag_su == 1:
+            # print("Use support_enumeration, V is:", reward_ct)
             output.put((j, reward_ct))
         else:
-            print ("WDNMD")
-            print("M is:", M)
-            print("state is:", state)
+        # except UnboundLocalError:  ##Here, we can not use support_enumeration, try vertex enumeration
+            rps = nash.Game(M)
+            eqs = rps.vertex_enumeration()
+            flag_ver = 0
+            for eq in eqs:
+                # policy_ct = np.round(eq[0], 6)
+                # policy_ad = np.round(eq[1], 6)
+                policy_ct = eq[0]
+                policy_ad = eq[1]
+                reward = rps[policy_ct, policy_ad]
+                reward_ct = reward[0]
+                if math.isnan(reward_ct) == False and math.isinf(reward_ct) == False and abs(reward_ct) <=100 and sum(abs(policy_ct))<1.1 and sum(abs(policy_ad))<1.1:
+                    flag_ver = 1
+                    break
+            if flag_ver == 1:
+                # print("Use vertex_enumeration, V is:", reward_ct)
+                output.put((j, reward_ct))
+            else:
+                print ("WDNMD")
+                print("M is:", M)
+                print("state is:", state)
     # print("state finish:", state)
          ##j here is used to keep multiprocessing in order
+
+def saddlePoint(M):
+    flag = False
+    V = 0
+    for i in range(len(M)):
+        for j in range(len(M[0])):
+            if M[i][j] == np.min(M[i,:]) and M[i][j] == np.max(M[:,j]):
+                flag = True
+                V = M[i][j]
+                break
+    return flag, V
+
 """
 def NashEqu(output, Game, state, j):
     M = Game.createGameMatrix(state)
-    iden = np.array([1, 1, 1, 1])
-    try:
-        V = 1 / (iden.dot(np.linalg.pinv(M)).dot(iden.T))
+    flag , V = saddlePoint(M)
+    if flag:
         output.put((j, V))
-    except np.linalg.LinAlgError:
-        print(M)
-        print(state)
-        input("111")
+    else:
+        print("Not saddle point, state is:", state)
+        print("M is:", M)
+        iden = np.array([1, 1, 1, 1])
+        try:
+            V = 1 / (iden.dot(np.linalg.pinv(M)).dot(iden.T))
+            q = V * np.linalg.pinv(M).dot(iden.T)
+            q_ = np.linalg.pinv(M).dot(iden.T) * V
+            print("V is:", V)
+            print("q is:", q)
+            print("q_ is:", q_)
+            output.put((j, V))
+        except np.linalg.LinAlgError:
+            print(M)
+            print(state)
+            input("111")
+"""
 
 def valueIter(Game, threadnumber):
     index = 1
