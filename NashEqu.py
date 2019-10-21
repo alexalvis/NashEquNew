@@ -8,6 +8,7 @@ import multiprocessing as mp
 import time
 import warnings
 from copy import deepcopy as dcp
+import random
 import time
 warnings.filterwarnings("ignore")
 
@@ -332,6 +333,10 @@ def parallelComputeReward(Game, threadnumber):
     return result
 
 if __name__ == '__main__':
+    mp.set_start_method('spawn')
+    seed = 1
+    random.seed(1)
+    np.random.seed(1)
     threadnumber = 20
     localtime = time.asctime(time.localtime(time.time()))
     print("Start time is:", localtime)
